@@ -1,0 +1,7 @@
+﻿services:
+  impactsofai.api:
+    image: impactsofai.api
+    build:
+      context: .
+      dockerfile: ImpactsOfAI.Api/Dockerfile
+
