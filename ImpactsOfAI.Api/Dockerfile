@@ -7,7 +7,7 @@ EXPOSE 8081
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-COPY ["ImpactsOfAI.Api/ImpactsOfAI.Api.csproj", "ImpactsOfAI.Api/"]
+COPY ["./ImpactsOfAI.Api.csproj", "ImpactsOfAI.Api/"]
 RUN dotnet restore "ImpactsOfAI.Api/ImpactsOfAI.Api.csproj"
 COPY . .
 WORKDIR "/src/ImpactsOfAI.Api"
