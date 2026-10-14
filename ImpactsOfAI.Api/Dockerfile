@@ -9,8 +9,8 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["./ImpactsOfAI.Api.csproj", "ImpactsOfAI.Api/"]
 RUN dotnet restore "ImpactsOfAI.Api/ImpactsOfAI.Api.csproj"
-COPY . .
 WORKDIR "/src/ImpactsOfAI.Api"
+COPY . .
 RUN dotnet build "./ImpactsOfAI.Api.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 FROM build AS publish
