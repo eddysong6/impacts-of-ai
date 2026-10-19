@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using ImpactsOfAI.Api.ApiKey;
@@ -26,8 +27,15 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.MapPost("/article", async (IConfiguration configuration, [FromBody] string content) =>
+app.MapPost("/article", async (IConfiguration configuration, HttpRequest request) =>
 {
+	string content;
+	
+	using (StreamReader reader = new(request.Body, Encoding.UTF8))
+	{  
+		content = await reader.ReadToEndAsync();
+	}
+	
 	string systemPrompt = """
 	                            You are extracting discrete arguments and findings from a research source about the impacts
 	                            of AI, for a structured analysis pipeline. You are NOT summarizing the source as a whole —
