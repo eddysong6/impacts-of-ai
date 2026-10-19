@@ -379,7 +379,7 @@ app.MapPost("/article", async (IConfiguration configuration, HttpRequest request
 
 	(int, RigorLevel) CalculateOverallRigor(FindingsResponse.Finding[] findings, MetaSkillScoresResponse metaSkillScores)
 	{
-		double avgRigorRaw = findings.Average(f => (int)f.Rigor + 1);
+		double avgRigorRaw = findings.Length > 0 ? findings.Average(f => (int)f.Rigor + 1) : 1;
 		double scaledRigor = ((avgRigorRaw - 1) / 6) * 10;
 
 		double composite =
