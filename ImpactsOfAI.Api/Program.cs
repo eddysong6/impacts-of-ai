@@ -17,6 +17,8 @@ builder.Services.AddProblemDetails();
 
 builder.Services.AddTransient<IApiKeyValidator, ApiKeyValidator>();
 
+builder.Services.AddHttpClient();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -27,8 +29,32 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.MapPost("/article", async (IConfiguration configuration, HttpRequest request) =>
+app.MapPost("/article/{doiPrefix}/{doiSuffix}", async (string doiPrefix, string doiSuffix, IConfiguration configuration, HttpRequest request, HttpClient httpClient) =>
 {
+	string doi = doiPrefix + "/" + doiSuffix;
+	
+	HttpResponseMessage sciteResponseMessage = await httpClient.GetAsync($"https://api.scite.ai/papers/{doi}");
+
+	sciteResponseMessage.EnsureSuccessStatusCode();
+
+	SciteResponse sciteResponse = await sciteResponseMessage.Content.ReadFromJsonAsync<SciteResponse>() ?? throw new Exception();
+
+	CitationDataResponse citationDataResponse = new()
+	{
+		Abstract = sciteResponse.Abstract,
+		Doi = sciteResponse.Doi,
+		Issue = int.Parse(sciteResponse.Issue),
+		Journal = sciteResponse.Journal,
+		PageMin = int.Parse(sciteResponse.Page.Split("-")[0]),
+		PageMax = int.Parse(sciteResponse.Page.Split("-")[1]),
+		Publisher = sciteResponse.Publisher,
+		Title = sciteResponse.Title,
+		Type = sciteResponse.Type,
+		Volume = int.Parse(sciteResponse.Volume),
+		Year = new DateOnly(sciteResponse.Year, 1, 1),
+		Authors = sciteResponse.Authors.Select(a => $"{a.Family}, {a.Given}").ToArray()
+	};
+		
 	string content;
 	
 	using (StreamReader reader = new(request.Body, Encoding.UTF8))
@@ -340,6 +366,7 @@ app.MapPost("/article", async (IConfiguration configuration, HttpRequest request
 
 	DataExtractionResponse dataExtractionResponse = new()
 	{
+		CitationDataResponse = citationDataResponse,
 		FindingsResponse = findingsResponse,
 		ImpactFactorRanking = impactFactorRanking,
 		BorcCategoryRanking = borcCategoryRanking,
@@ -398,8 +425,64 @@ app.MapPost("/article", async (IConfiguration configuration, HttpRequest request
 
 app.Run();
 
+record SciteResponse
+{
+	public List<Author> Authors { get; set; }
+	public string Doi { get; set; }
+	public List<object> EditorialNotices { get; set; }
+	public int Id { get; set; }
+	public List<string> Issns { get; set; }
+	public string Issue { get; set; }
+	public string Journal { get; set; }
+	public string JournalSlug { get; set; }
+	public int MemberId { get; set; }
+	public List<string> NormalizedTypes { get; set; }
+	public string Page { get; set; }
+	public List<object> PreprintLinks { get; set; }
+	public List<object> PublicationLinks { get; set; }
+	public string Publisher { get; set; }
+	public bool Retracted { get; set; }
+	public string ShortJournal { get; set; }
+	public string Slug { get; set; }
+	public string Title { get; set; }
+	public string Abstract { get; set; }
+	public string Type { get; set; }
+	public string Volume { get; set; }
+	public int Year { get; set; }
+	
+	public record Author
+	{
+		public string Affiliation { get; set; }
+		public string AffiliationID { get; set; }
+		public string AffiliationSlug { get; set; }
+		public string AuthorID { get; set; }
+		public string AuthorName { get; set; }
+		public int AuthorSequenceNumber { get; set; }
+		public string AuthorSlug { get; set; }
+		public string Family { get; set; }
+		public string Given { get; set; }
+	}
+}
+
+record CitationDataResponse
+{
+	public string Title { get; set; }
+	public DateOnly Year { get; set; }
+	public string Publisher { get; set; }
+	public string Abstract { get; set; }
+	public string Type { get; set; }
+	public int Volume { get; set; }
+	public int Issue { get; set; }
+	public string Doi { get; set; }
+	public string Journal { get; set; }
+	public int PageMin { get; set; }
+	public int PageMax { get; set; }
+	public string[] Authors { get; set; }
+}
+
 record DataExtractionResponse
 {
+	public CitationDataResponse CitationDataResponse { get; set; }
 	public FindingsResponse FindingsResponse { get; set; }
 	public CategoryAggregate<ImpactFactor>[] ImpactFactorRanking { get; set; }
 	public CategoryAggregate<BorcCategory>[] BorcCategoryRanking { get; set; }
