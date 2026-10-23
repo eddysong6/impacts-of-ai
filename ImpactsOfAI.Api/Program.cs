@@ -52,7 +52,7 @@ app.MapPost("/article/{doiPrefix}/{doiSuffix}", async (string doiPrefix, string 
 		Type = sciteResponse.Type,
 		Volume = int.Parse(sciteResponse.Volume),
 		Year = new DateOnly(sciteResponse.Year, 1, 1),
-		Authors = sciteResponse.Authors.Select(a => $"{a.Family}, {a.Given}").ToArray()
+		Authors = sciteResponse.Authors.Select(a => $"{a.Family}; {a.Given}").ToArray()
 	};
 		
 	string content;
