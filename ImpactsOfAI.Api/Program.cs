@@ -1,7 +1,9 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using ImpactsOfAI.Api.ApiKey;
+using ImpactsOfAI.Api.Verification;
 using Microsoft.AspNetCore.Mvc;
 using OpenAI.Responses;
 
@@ -83,7 +85,8 @@ app.MapPost("/article/{doiPrefix}/{doiSuffix}", async (string doiPrefix, string 
 	                               
 	                               (what the BORC categories mean will be explained further below)
 
-	                            2. Quote or closely paraphrase (<=40 words) the specific text this finding is grounded in.
+	                            2. Quote EXACTLY the specific text this finding is grounded in. If you cannot find a strictly verbatim quote
+	                               supporting the finding, do not output the finding.
 
 	                            3. Classify the finding's impact factor using ONLY these eight categories: natural
 	                               environment, energy, socioculture, socioeconomics, health/wellness, education,
@@ -169,7 +172,7 @@ app.MapPost("/article/{doiPrefix}/{doiSuffix}", async (string doiPrefix, string 
 		          },
 		          "evidence_excerpt": {
 		            "type": "string",
-		            "description": "A short verbatim quote or close paraphrase (<= 40 words) from the source that this finding is grounded in. Used for auditability, not for display."
+		            "description": "A strictly verbatim quote from the source that this finding is grounded in. Used for auditability, not for display."
 		          },
 		          "impact_factor": {
 		            "type": "string",
@@ -238,6 +241,45 @@ app.MapPost("/article/{doiPrefix}/{doiSuffix}", async (string doiPrefix, string 
 	};
 
 	FindingsResponse findingsResponse = JsonSerializer.Deserialize<FindingsResponse>(response.GetOutputText(), jsonSerializerOptions);
+	// string normalizedContent = NormalizeString(content);
+	ExcerptVerifier verifier = new(content);
+
+	foreach (FindingsResponse.Finding finding in findingsResponse.Findings)
+	{
+		// if (normalizedContent.Contains(NormalizeString(finding.EvidenceExcerpt))) continue;
+		//
+		// finding.VerificationStatus = VerificationStatus.Dropped;
+
+		ExcerptMatch match = verifier.Verify(finding.EvidenceExcerpt);
+
+		finding.VerificationStatus = match.Kind switch
+		{
+			MatchKind.Exact => VerificationStatus.Verified,
+			MatchKind.Fuzzy => VerificationStatus.Flagged,
+			_ => VerificationStatus.Dropped
+		};
+
+		finding.EvidenceOffset = match.StartOffset;
+	}
+
+	// string NormalizeString(string s)
+	// {
+	// 	string normalized = s.Normalize(NormalizationForm.FormKC);
+	// 	
+	// 	Regex singleQuoteRegex = new(@"/[\u2018\u2019]/g");
+	// 	normalized = singleQuoteRegex.Replace(normalized, "'");
+	// 	
+	// 	Regex doubleQuoteRegex = new(@"/[\u201C\u201D]/g");
+	// 	normalized = doubleQuoteRegex.Replace(normalized, "\"");
+	//
+	// 	Regex hyphenatedLineBreaksRegex = new(@"/-\s*\n\s*/g");
+	// 	normalized = hyphenatedLineBreaksRegex.Replace(normalized, "");
+	//
+	// 	Regex whitespaceRegex = new(@"/\s+/g");
+	// 	normalized = whitespaceRegex.Replace(normalized, " ");
+	//
+	// 	return normalized;
+	// }
 
 	ImpactFactor[] impactFactors =
 	[
@@ -259,7 +301,8 @@ app.MapPost("/article/{doiPrefix}/{doiSuffix}", async (string doiPrefix, string 
 	               You are scoring a research source about the impacts of AI on five meta-skills it demonstrates
 	               in its own argumentation. Score the SOURCE AS A WHOLE — this is a holistic judgment, not a
 	               per-finding one. For each skill, give an integer 0-10 and a justification (<=40 words) that
-	               cites specific textual evidence for the score you gave.
+	               cites specific textual evidence for the score you gave. In addition to this justification,
+	               quote EXACTLY the specific text(s) your score is grounded in.
 	               
 	               Critical reasoning: does the source support its arguments with sufficient evidence and
 	               elaboration for the conclusions to logically follow? Consider the following rubric anchors:
@@ -319,24 +362,49 @@ app.MapPost("/article/{doiPrefix}/{doiSuffix}", async (string doiPrefix, string 
 		  "properties": {
 		    "critical_reasoning": { "type": "object", "properties": {
 		      "score": { "type": "integer", "minimum": 0, "maximum": 10 },
-		      "justification": { "type": "string" }
-		    }, "required": ["score", "justification"], "additionalProperties": false },
+		      "justification": { "type": "string" },
+		      "evidence_excerpts": {
+			    "type": "array",
+			    "items": { "type": "string" },
+			    "description": "Strictly verbatim quotes this score is grounded in. Used for auditability, not for display."
+		      }
+		    }, "required": ["score", "justification", "evidence_excerpts"], "additionalProperties": false },
 		    "decision_making": { "type": "object", "properties": {
 		      "score": { "type": "integer", "minimum": 0, "maximum": 10 },
-		      "justification": { "type": "string" }
-		    }, "required": ["score", "justification"], "additionalProperties": false },
+		      "justification": { "type": "string" },
+		      "evidence_excerpts": {
+				"type": "array",
+				"items": { "type": "string" },
+				"description": "Strictly verbatim quotes this score is grounded in. Used for auditability, not for display."
+		      }
+		    }, "required": ["score", "justification", "evidence_excerpts"], "additionalProperties": false },
 		    "problem_solving": { "type": "object", "properties": {
 		      "score": { "type": "integer", "minimum": 0, "maximum": 10 },
-		      "justification": { "type": "string" }
-		    }, "required": ["score", "justification"], "additionalProperties": false },
+		      "justification": { "type": "string" },
+		      "evidence_excerpts": {
+				"type": "array",
+				"items": { "type": "string" },
+				"description": "Strictly verbatim quotes this score is grounded in. Used for auditability, not for display."
+		      }
+		    }, "required": ["score", "justification", "evidence_excerpts"], "additionalProperties": false },
 		    "creativity": { "type": "object", "properties": {
 		      "score": { "type": "integer", "minimum": 0, "maximum": 10 },
-		      "justification": { "type": "string" }
-		    }, "required": ["score", "justification"], "additionalProperties": false },
+		      "justification": { "type": "string" },
+		      "evidence_excerpts": {
+				"type": "array",
+				"items": { "type": "string" },
+				"description": "Strictly verbatim quotes this score is grounded in. Used for auditability, not for display."
+		      }
+		    }, "required": ["score", "justification", "evidence_excerpts"], "additionalProperties": false },
 		    "communications": { "type": "object", "properties": {
 		      "score": { "type": "integer", "minimum": 0, "maximum": 10 },
-		      "justification": { "type": "string" }
-		    }, "required": ["score", "justification"], "additionalProperties": false }
+		      "justification": { "type": "string" },
+		      "evidence_excerpts": {
+				"type": "array",
+				"items": { "type": "string" },
+				"description": "Strictly verbatim quotes this score is grounded in. Used for auditability, not for display."
+		      }
+		    }, "required": ["score", "justification", "evidence_excerpts"], "additionalProperties": false }
 		  },
 		  "required": ["critical_reasoning", "decision_making", "problem_solving", "creativity", "communications"],
 		  "additionalProperties": false
@@ -361,6 +429,33 @@ app.MapPost("/article/{doiPrefix}/{doiSuffix}", async (string doiPrefix, string 
 	response = await responsesClient.CreateResponseAsync(options);
 
 	MetaSkillScoresResponse metaSkillScoresResponse = JsonSerializer.Deserialize<MetaSkillScoresResponse>(response.GetOutputText(), jsonSerializerOptions);
+
+	metaSkillScoresResponse.DecisionMaking = VerifyMetaSkillScore(metaSkillScoresResponse.DecisionMaking);
+	metaSkillScoresResponse.Communications = VerifyMetaSkillScore(metaSkillScoresResponse.Communications);
+	metaSkillScoresResponse.Creativity = VerifyMetaSkillScore(metaSkillScoresResponse.Creativity);
+	metaSkillScoresResponse.CriticalReasoning = VerifyMetaSkillScore(metaSkillScoresResponse.CriticalReasoning);
+	metaSkillScoresResponse.ProblemSolving = VerifyMetaSkillScore(metaSkillScoresResponse.ProblemSolving);
+
+	MetaSkillScoresResponse.MetaSkillScore VerifyMetaSkillScore(MetaSkillScoresResponse.MetaSkillScore metaSkillScore)
+	{
+		foreach (string evidenceExcerpt in metaSkillScore.EvidenceExcerpts)
+		{
+			ExcerptMatch match = verifier.Verify(evidenceExcerpt);
+
+			if (match.Kind == MatchKind.None)
+			{
+				metaSkillScore.VerificationStatus = VerificationStatus.Dropped;
+				break;
+			}
+
+			if (match.Kind == MatchKind.Fuzzy)
+			{
+				metaSkillScore.VerificationStatus = VerificationStatus.Flagged;
+			}
+		}
+
+		return metaSkillScore;
+	}
 
 	(int, RigorLevel) overallRigor = CalculateOverallRigor(findingsResponse.Findings, metaSkillScoresResponse);
 
@@ -406,16 +501,18 @@ app.MapPost("/article/{doiPrefix}/{doiSuffix}", async (string doiPrefix, string 
 
 	(int, RigorLevel) CalculateOverallRigor(FindingsResponse.Finding[] findings, MetaSkillScoresResponse metaSkillScores)
 	{
+		findings = findings.Where(f => f.VerificationStatus != VerificationStatus.Dropped).ToArray();
+		
 		double avgRigorRaw = findings.Length > 0 ? findings.Average(f => (int)f.Rigor + 1) : 1;
 		double scaledRigor = ((avgRigorRaw - 1) / 6) * 10;
 
 		double composite =
 			0.4 * scaledRigor +
-			0.25 * metaSkillScores.CriticalReasoning.Score +
-			0.15 * metaSkillScores.DecisionMaking.Score +
-			0.15 * metaSkillScores.ProblemSolving.Score +
-			0.025 * metaSkillScores.Creativity.Score +
-			0.025 * metaSkillScores.Communications.Score;
+			(metaSkillScores.CriticalReasoning.VerificationStatus == VerificationStatus.Dropped ? 0 : 0.25 * metaSkillScores.CriticalReasoning.Score) +
+			(metaSkillScores.DecisionMaking.VerificationStatus == VerificationStatus.Dropped ? 0 : 0.15 * metaSkillScores.DecisionMaking.Score) +
+			(metaSkillScores.ProblemSolving.VerificationStatus == VerificationStatus.Dropped ? 0 : 0.15 * metaSkillScores.ProblemSolving.Score) +
+			(metaSkillScores.Creativity.VerificationStatus == VerificationStatus.Dropped ? 0 : 0.025 * metaSkillScores.Creativity.Score) +
+			(metaSkillScores.Communications.VerificationStatus == VerificationStatus.Dropped ? 0 : 0.025 * metaSkillScores.Communications.Score);
 
 		RigorLevel overallRigor = (RigorLevel)Math.Min(6, (int)Math.Floor(composite / (10.0 / 7)));
 
@@ -509,6 +606,8 @@ record FindingsResponse
 		public ImpactFactor ImpactFactor { get; set; }
 		public BorcCategory BorcCategory { get; set; }
 		public RigorLevel Rigor { get; set; }
+		public VerificationStatus VerificationStatus { get; set; }
+		public int EvidenceOffset { get; set; }
 	}
 }
 
@@ -524,7 +623,16 @@ record MetaSkillScoresResponse
 	{
 		public int Score { get; set; }
 		public string Justification { get; set; }
+		public string[] EvidenceExcerpts { get; set; }
+		public VerificationStatus VerificationStatus { get; set; }
 	}
+}
+
+enum VerificationStatus
+{
+	Verified,
+	Flagged,
+	Dropped
 }
 
 enum ImpactFactor
