@@ -2,7 +2,7 @@
 
 using System.Text;
 
-namespace ImpactsOfAI.Api.Verification;
+namespace ImpactsOfAI.Api.Engine.Verification;
 
 public enum MatchKind { Exact, Fuzzy, None }
 
@@ -121,6 +121,14 @@ public sealed class ExcerptVerifier
 
     public ExcerptMatch Verify(string excerpt)
     {
+        // Remove outer quotes.
+        if (excerpt.Length > 0 &&
+            excerpt[0] is '\u201C' or '\u201D' or '"' &&
+            excerpt[^1] is '\u201C' or '\u201D' or '"')
+        {
+            excerpt = excerpt[1..^1];
+        }
+        
         string pattern = TextNormalizer.Normalize(excerpt).Text;
         if (pattern.Length == 0) return NoMatch(0);
 
