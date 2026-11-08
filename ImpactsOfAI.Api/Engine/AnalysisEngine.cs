@@ -32,15 +32,19 @@ public class AnalysisEngine(string articleContent, ResponsesClient responsesClie
 
     public async Task<AnalyzedArticle> AnalyzeArticleAsync()
     {
-        FindingsResponse findingsResponse = await ExtractFindingsAsync();
+        FindingsResponse findingsResponse = null!;
+        MetaSkillScoresResponse metaSkillScoresResponse = null!;
+
+        async Task SetFindingsResponse() => findingsResponse = await ExtractFindingsAsync();
+        async Task SetMetaSkillScoresResponse() => metaSkillScoresResponse = await ScoreMetaSkillsAsync();
+
+        await Task.WhenAll(SetFindingsResponse(), SetMetaSkillScoresResponse());
 
         FindingsResponse.Finding[] verifiedFindings = findingsResponse.Findings
             .Where(f => f.VerificationStatus != VerificationStatus.Dropped).ToArray();
 
         (CategoryAggregate<ImpactFactor>[] impactFactorRanking, CategoryAggregate<BorcCategory>[] borcCategoryRanking) = 
             RankCategories(verifiedFindings);
-
-        MetaSkillScoresResponse metaSkillScoresResponse = await ScoreMetaSkillsAsync();
 
         (int compositeScore, RigorLevel overallRigor) = CalculateOverallRigor(verifiedFindings, metaSkillScoresResponse);
 

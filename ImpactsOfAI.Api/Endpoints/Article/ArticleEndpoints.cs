@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Collections.Concurrent;
+using System.Text;
 using ImpactsOfAI.Api.ApiKey;
 using ImpactsOfAI.Api.Engine;
 using Microsoft.AspNetCore.Mvc;
@@ -16,7 +17,7 @@ public static class ArticleEndpoints
         group.MapPost("/{doiPrefix}/{doiSuffix}", CreateArticleAnalysis);
     }
 
-    private static async Task<IResult> CreateArticleAnalysis(string doiPrefix, string doiSuffix, IConfiguration configuration, HttpRequest request, HttpClient httpClient)
+    private static async Task<IResult> CreateArticleAnalysis(string doiPrefix, string doiSuffix, List<DocumentResult> descriptiveResults, IConfiguration configuration, HttpRequest request, HttpClient httpClient)
     {
 		string doi = doiPrefix + "/" + doiSuffix;
 		
@@ -52,27 +53,36 @@ public static class ArticleEndpoints
 			Authors = sciteResponse.Authors.Select(a => $"{a.Family}; {a.Given}").ToArray()
 		};
 			
-		string content;
+		// string content;
+		//
+		// using (StreamReader reader = new(request.Body, Encoding.UTF8))
+		// {  
+		// 	content = await reader.ReadToEndAsync();
+		// }
 		
-		using (StreamReader reader = new(request.Body, Encoding.UTF8))
-		{  
-			content = await reader.ReadToEndAsync();
-		}
+		string[] contents = descriptiveResults.Select(r => r.Reconstruction.Blocks.Aggregate("", (current, block) => current + block.Text)).ToArray();
+		ConcurrentBag<DataExtractionResponse> dataExtractionResponses = [];
+		ResponsesClient responsesClient = new(configuration["OpenAIApiKey"]);
 
-		AnalysisEngine analysisEngine = new(content, new ResponsesClient(configuration["OpenAIApiKey"]));
-		AnalyzedArticle analyzedArticle = await analysisEngine.AnalyzeArticleAsync();
-
-		DataExtractionResponse dataExtractionResponse = new()
+		await Task.WhenAll(contents.Select<string, Task>(async content =>
 		{
-			CitationDataResponse = citationDataResponse,
-			FindingsResponse = analyzedArticle.FindingsResponse,
-			ImpactFactorRanking = analyzedArticle.ImpactFactorRanking,
-			BorcCategoryRanking = analyzedArticle.BorcCategoryRanking,
-			MetaSkillScoresResponse = analyzedArticle.MetaSkillScoresResponse,
-			CompositeScore = analyzedArticle.CompositeScore,
-			OverallRigor = analyzedArticle.OverallRigor
-		};
+			AnalysisEngine analysisEngine = new(content, responsesClient);
+			AnalyzedArticle analyzedArticle = await analysisEngine.AnalyzeArticleAsync();
 
-		return Results.Ok(dataExtractionResponse);
+			DataExtractionResponse dataExtractionResponse = new()
+			{
+				CitationDataResponse = citationDataResponse,
+				FindingsResponse = analyzedArticle.FindingsResponse,
+				ImpactFactorRanking = analyzedArticle.ImpactFactorRanking,
+				BorcCategoryRanking = analyzedArticle.BorcCategoryRanking,
+				MetaSkillScoresResponse = analyzedArticle.MetaSkillScoresResponse,
+				CompositeScore = analyzedArticle.CompositeScore,
+				OverallRigor = analyzedArticle.OverallRigor
+			};
+			
+			dataExtractionResponses.Add(dataExtractionResponse);
+		}));
+
+		return Results.Ok(dataExtractionResponses);
     }
 }

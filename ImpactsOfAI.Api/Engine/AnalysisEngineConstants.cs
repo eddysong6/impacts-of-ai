@@ -4,8 +4,8 @@ public static class AnalysisEngineConstants
 {
 	public const string FindingsExtractionPrompt =
 		"""
-		You are extracting discrete arguments and findings from a research source about the impacts
-		of AI, for a structured analysis pipeline. You are NOT summarizing the source as a whole —
+		You are extracting discrete arguments and findings from a research source for a structured analysis pipeline.
+		You are NOT summarizing the source as a whole —
 		you are pulling out each individually stated claim, argument, or finding, one at a time.
 		Each finding MUST be self-contained and broadly applicable — if a finding is not understandable without having read the source,
 		cannot be generalized beyond the specific source, or refers to something from another finding, it is evidence
@@ -86,7 +86,7 @@ public static class AnalysisEngineConstants
 
 	public const string MetaSkillScoringPrompt =
 		"""
-		You are scoring a research source about the impacts of AI on five meta-skills it demonstrates
+		You are scoring a research source on five meta-skills it demonstrates
 		in its own argumentation. Score the SOURCE AS A WHOLE — this is a holistic judgment, not a
 		per-finding one. For each skill, give an integer 0-10 and a justification (<=40 words) that
 		cites specific textual evidence for the score you gave. In addition to this justification,
