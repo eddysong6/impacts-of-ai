@@ -1,4 +1,5 @@
-﻿using ImpactsOfAI.Api.Engine;
+﻿using ImpactsOfAI.Api.Domain;
+using ImpactsOfAI.Api.Engine;
 
 namespace ImpactsOfAI.Api.Endpoints.Article;
 
@@ -25,7 +26,7 @@ public record SciteResponse
 	public string Abstract { get; set; }
 	public string Type { get; set; }
 	public string Volume { get; set; }
-	public int Year { get; set; }
+	public int? Year { get; set; }
 	
 	public record Author
 	{
@@ -44,22 +45,21 @@ public record SciteResponse
 public record CitationDataResponse
 {
 	public string Title { get; set; }
-	public DateOnly Year { get; set; }
+	public int? Year { get; set; }
 	public string Publisher { get; set; }
 	public string Abstract { get; set; }
 	public string Type { get; set; }
-	public int Volume { get; set; }
-	public int Issue { get; set; }
+	public string? Volume { get; set; }
+	public string? Issue { get; set; }
 	public string Doi { get; set; }
 	public string Journal { get; set; }
-	public int PageMin { get; set; }
-	public int PageMax { get; set; }
+	public string? Pages { get; set; }
 	public string[] Authors { get; set; }
 }
 
 public record DataExtractionResponse
 {
-	public CitationDataResponse CitationDataResponse { get; set; }
+	public CitationDataResponse? CitationDataResponse { get; set; }
 	public FindingsResponse FindingsResponse { get; set; }
 	public CategoryAggregate<ImpactFactor>[] ImpactFactorRanking { get; set; }
 	public CategoryAggregate<BorcCategory>[] BorcCategoryRanking { get; set; }

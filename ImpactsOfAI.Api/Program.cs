@@ -1,5 +1,7 @@
 using ImpactsOfAI.Api.ApiKey;
+using ImpactsOfAI.Api.Database;
 using ImpactsOfAI.Api.Endpoints.Article;
+using Microsoft.EntityFrameworkCore;
 
 #pragma warning disable OPENAI001
 
@@ -12,6 +14,8 @@ builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
 
 builder.Services.AddTransient<IApiKeyValidator, ApiKeyValidator>();
+
+builder.Services.AddDbContext<ArticleDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddHttpClient();
 

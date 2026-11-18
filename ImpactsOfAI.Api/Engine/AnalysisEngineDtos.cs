@@ -1,4 +1,6 @@
-﻿namespace ImpactsOfAI.Api.Engine;
+﻿using ImpactsOfAI.Api.Domain;
+
+namespace ImpactsOfAI.Api.Engine;
 
 public class AnalyzedArticle
 {
@@ -58,33 +60,33 @@ public enum VerificationStatus
 	Dropped
 }
 
-public enum ImpactFactor
-{
-	NaturalEnvironment,
-	Energy,
-	Socioculture,
-	Socioeconomics,
-	HealthWellness,
-	Education,
-	GovernmentPolitics,
-	Infrastructure
-}
-
-public enum BorcCategory
-{
-	Benefit,
-	Opportunity,
-	Challenge,
-	Risk
-}
-
-public enum RigorLevel
-{
-	ExtremelyLow,
-	VeryLow,
-	Low,
-	Medium,
-	High,
-	VeryHigh,
-	ExtremelyHigh
-}
+// public enum ImpactFactor
+// {
+// 	NaturalEnvironment,
+// 	Energy,
+// 	Socioculture,
+// 	Socioeconomics,
+// 	HealthWellness,
+// 	Education,
+// 	GovernmentPolitics,
+// 	Infrastructure
+// }
+//
+// public enum BorcCategory
+// {
+// 	Benefit,
+// 	Opportunity,
+// 	Challenge,
+// 	Risk
+// }
+//
+// public enum RigorLevel
+// {
+// 	ExtremelyLow,
+// 	VeryLow,
+// 	Low,
+// 	Medium,
+// 	High,
+// 	VeryHigh,
+// 	ExtremelyHigh
+// }

@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
+using ImpactsOfAI.Api.Domain;
 using ImpactsOfAI.Api.Engine.Verification;
 using OpenAI.FineTuning;
 using OpenAI.Responses;
@@ -30,15 +31,15 @@ public class AnalysisEngine(string articleContent, ResponsesClient responsesClie
     
     private ExcerptVerifier verifier = new(articleContent);
 
-    public async Task<AnalyzedArticle> AnalyzeArticleAsync()
+    public async Task<AnalyzedArticle> AnalyzeArticleAsync(CancellationToken cancellationToken)
     {
         FindingsResponse findingsResponse = null!;
         MetaSkillScoresResponse metaSkillScoresResponse = null!;
 
-        async Task SetFindingsResponse() => findingsResponse = await ExtractFindingsAsync();
-        async Task SetMetaSkillScoresResponse() => metaSkillScoresResponse = await ScoreMetaSkillsAsync();
+        async Task SetFindingsResponse() => findingsResponse = await ExtractFindingsAsync(cancellationToken);
+        async Task SetMetaSkillScoresResponse() => metaSkillScoresResponse = await ScoreMetaSkillsAsync(cancellationToken);
 
-        await Task.WhenAll(SetFindingsResponse(), SetMetaSkillScoresResponse());
+        await Task.WhenAll(SetFindingsResponse(), SetMetaSkillScoresResponse()).WaitAsync(cancellationToken);
 
         FindingsResponse.Finding[] verifiedFindings = findingsResponse.Findings
             .Where(f => f.VerificationStatus != VerificationStatus.Dropped).ToArray();
@@ -60,7 +61,7 @@ public class AnalysisEngine(string articleContent, ResponsesClient responsesClie
         };
     }
 
-    private async Task<FindingsResponse> ExtractFindingsAsync()
+    private async Task<FindingsResponse> ExtractFindingsAsync(CancellationToken cancellationToken)
     {
         string userPrompt = $"""
                              Source text:
@@ -88,7 +89,7 @@ public class AnalysisEngine(string articleContent, ResponsesClient responsesClie
         options.InputItems.Add(ResponseItem.CreateSystemMessageItem(AnalysisEngineConstants.FindingsExtractionPrompt));
         options.InputItems.Add(ResponseItem.CreateUserMessageItem(userPrompt));
 
-        ResponseResult response = await responsesClient.CreateResponseAsync(options);
+        ResponseResult response = await responsesClient.CreateResponseAsync(options, cancellationToken);
 
         FindingsResponse findingsResponse = JsonSerializer.Deserialize<FindingsResponse>(response.GetOutputText(), JsonSerializerOptions);
         
@@ -109,7 +110,7 @@ public class AnalysisEngine(string articleContent, ResponsesClient responsesClie
         return findingsResponse;
     }
 
-    private async Task<MetaSkillScoresResponse> ScoreMetaSkillsAsync()
+    private async Task<MetaSkillScoresResponse> ScoreMetaSkillsAsync(CancellationToken cancellationToken)
     {
         string userPrompt = $"""
                       Source text:
@@ -137,7 +138,7 @@ public class AnalysisEngine(string articleContent, ResponsesClient responsesClie
         options.InputItems.Add(ResponseItem.CreateSystemMessageItem(AnalysisEngineConstants.MetaSkillScoringPrompt));
         options.InputItems.Add(ResponseItem.CreateUserMessageItem(userPrompt));
 
-        ResponseResult response = await responsesClient.CreateResponseAsync(options);
+        ResponseResult response = await responsesClient.CreateResponseAsync(options, cancellationToken);
 
         MetaSkillScoresResponse metaSkillScoresResponse = JsonSerializer.Deserialize<MetaSkillScoresResponse>(response.GetOutputText(), JsonSerializerOptions);
 

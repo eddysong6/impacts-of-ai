@@ -10,7 +10,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace ImpactsOfAI.Api.Engine;
+namespace ImpactsOfAI.Api.Endpoints.Article;
 
 #region "n/a (reason)" wrapper
 
