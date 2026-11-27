@@ -3,19 +3,19 @@
 public class Article
 {
     public int Id { get; init; }
-    public string Title { get; set; }
+    public string? Title { get; set; }
     public string[] Authors { get; set; }
-    public string Publisher { get; set; }
+    public string? Publisher { get; set; }
     public string URL { get; set; }
     public RigorLevel RigorLevel { get; set; }
-    public string Summary { get; set; }
+    public string? Summary { get; set; }
     public string[] Keywords { get; set; }
-    public string SourceType { get; set; }
+    public string? SourceType { get; set; }
     public int CompositeScore { get; set; }
     public string? Volume { get; set; }
     public string? Issue { get; set; }
     public string? Doi { get; set; }
-    public string Journal { get; set; }
+    public string? Journal { get; set; }
     public string? Pages { get; set; }
     public int? Year { get; set; }
 

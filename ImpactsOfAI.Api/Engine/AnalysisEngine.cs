@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using ImpactsOfAI.Api.Domain;
+using ImpactsOfAI.Api.Endpoints.Article;
 using ImpactsOfAI.Api.Engine.Verification;
 using OpenAI.FineTuning;
 using OpenAI.Responses;
@@ -8,7 +9,7 @@ using OpenAI.Responses;
 
 namespace ImpactsOfAI.Api.Engine;
 
-public class AnalysisEngine(string articleContent, ResponsesClient responsesClient)
+public class AnalysisEngine(IFormFile file, ResponsesClient responsesClient)
 {
     private static readonly JsonSerializerOptions JsonSerializerOptions = new()
     {
@@ -29,7 +30,81 @@ public class AnalysisEngine(string articleContent, ResponsesClient responsesClie
     private static readonly BorcCategory[] BorcCategories =
         [BorcCategory.Benefit, BorcCategory.Opportunity, BorcCategory.Challenge, BorcCategory.Risk];
     
-    private ExcerptVerifier verifier = new(articleContent);
+    private ExcerptVerifier verifier;
+    private string articleContent;
+
+    // verifier = new ExcerptVerifier(articleContent);
+
+    public async Task Initialize(CancellationToken cancellationToken)
+    {
+        CreateResponseOptions options = new()
+        {
+            Model = "gpt-5.6-terra"
+        };
+
+        options.InputItems.Add(ResponseItem.CreateSystemMessageItem("Convert the given PDF into text. Include ALL the text in the PDF, including, but not limited to, headers, footers, copyright information, page numbers, and other metadata. Do NOT add information not in the PDF or make meta-references to the article such as 'The article has been successfully extracted.'"));
+        options.InputItems.Add(ResponseItem.CreateUserMessageItem(
+            [ResponseContentPart.CreateInputFilePart(await BinaryData.FromStreamAsync(file.OpenReadStream(), cancellationToken), "application/pdf", file.Name)]
+        ));
+        
+        ResponseResult response = await responsesClient.CreateResponseAsync(options, cancellationToken);
+
+        articleContent = response.GetOutputText();
+
+        Console.WriteLine(articleContent);
+        
+        verifier = new ExcerptVerifier(articleContent);
+    }
+
+    public async Task<CitationDataResponse> ExtractCitationDataAsync(CancellationToken cancellationToken)
+    {
+        string userPrompt = $"""
+                             Source text:
+                             <<<
+                             {articleContent}
+                             >>>
+
+                             Extract the citation data per your instructions.
+                             """;
+
+        BinaryData schema = BinaryData.FromString(AnalysisEngineConstants.CitationDataJsonSchema);
+
+        CreateResponseOptions options = new()
+        {
+            Model = "gpt-5.6-terra",
+            TextOptions = new ResponseTextOptions
+            {
+                TextFormat = ResponseTextFormat.CreateJsonSchemaFormat(
+                    "extract_findings",
+                    schema,
+                    jsonSchemaIsStrict: true),
+            },
+        };
+
+        options.InputItems.Add(ResponseItem.CreateSystemMessageItem(AnalysisEngineConstants.CitationDataExtractionPrompt));
+        options.InputItems.Add(ResponseItem.CreateUserMessageItem(userPrompt));
+
+        ResponseResult response = await responsesClient.CreateResponseAsync(options, cancellationToken);
+
+        CitationDataExtractionResponse citationDataExtractionResponse = JsonSerializer.Deserialize<CitationDataExtractionResponse>(response.GetOutputText(), JsonSerializerOptions);
+
+        return new CitationDataResponse
+        {
+            Title = citationDataExtractionResponse.Title,
+            Year = citationDataExtractionResponse.Year,
+            Publisher = citationDataExtractionResponse.Publisher,
+            Abstract = citationDataExtractionResponse.Abstract,
+            Type = citationDataExtractionResponse.SourceType,
+            Volume = citationDataExtractionResponse.Volume,
+            Issue = citationDataExtractionResponse.Issue,
+            Doi = citationDataExtractionResponse.Doi,
+            Journal = citationDataExtractionResponse.Journal,
+            Pages = citationDataExtractionResponse.Pages == null 
+                ? null 
+                : citationDataExtractionResponse.Pages.Min + "-" + citationDataExtractionResponse.Pages.Max,
+            Authors = citationDataExtractionResponse.Authors
+        };
+    }
 
     public async Task<AnalyzedArticle> AnalyzeArticleAsync(CancellationToken cancellationToken)
     {

@@ -1,11 +1,14 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using ImpactsOfAI.Api.ApiKey;
 using ImpactsOfAI.Api.Database;
 using ImpactsOfAI.Api.Domain;
 using ImpactsOfAI.Api.Engine;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using OpenAI.Responses;
 #pragma warning disable OPENAI001
@@ -18,53 +21,53 @@ public static class ArticleEndpoints
     {
         RouteGroupBuilder group = app.MapGroup("/article").AddEndpointFilter<ApiKeyEndpointFilter>();
 
-        group.MapPost("", CreateArticleAnalysis);
+        group.MapPost("", CreateArticleAnalysis).DisableAntiforgery();
     }
 
-    private static async Task<IResult> CreateArticleAnalysis(List<DocumentResult> descriptiveResults, IConfiguration configuration, HttpRequest request, HttpClient httpClient, ArticleDbContext dbContext)
+    private static async Task<IResult> CreateArticleAnalysis(IFormFileCollection files, IConfiguration configuration, HttpRequest request, HttpClient httpClient, ArticleDbContext dbContext)
     {
-		// string doi = doiPrefix + "/" + doiSuffix;
-		//
-		// HttpResponseMessage sciteResponseMessage = await httpClient.GetAsync($"https://api.scite.ai/papers/{doi}");
-		//
-		// if (!sciteResponseMessage.IsSuccessStatusCode)
-		// {
-		// 	ProblemDetails problemDetails = new()
-		// 	{
-		// 		Status = (int)sciteResponseMessage.StatusCode,
-		// 		Title = "Citation retrieval failed",
-		// 		Detail = sciteResponseMessage.ReasonPhrase,
-		// 	};
-		//
-		// 	return Results.Problem(problemDetails);
-		// }
-		//
-		// SciteResponse sciteResponse = await sciteResponseMessage.Content.ReadFromJsonAsync<SciteResponse>() ?? throw new Exception();
-		//
-		// CitationDataResponse citationDataResponse = new()
-		// {
-		// 	Abstract = sciteResponse.Abstract,
-		// 	Doi = sciteResponse.Doi,
-		// 	Issue = sciteResponse.Issue,
-		// 	Journal = sciteResponse.Journal,
-		// 	Pages = sciteResponse.Page,
-		// 	Publisher = sciteResponse.Publisher,
-		// 	Title = sciteResponse.Title,
-		// 	Type = sciteResponse.Type,
-		// 	Volume = sciteResponse.Volume,
-		// 	Year = sciteResponse.Year,
-		// 	Authors = sciteResponse.Authors.Select(a => $"{a.Family}, {a.Given}").ToArray()
-		// };
-		
-		// string content;
-		//
-		// using (StreamReader reader = new(request.Body, Encoding.UTF8))
-		// {  
-		// 	content = await reader.ReadToEndAsync();
-		// }
-		
-		// string[] contents = descriptiveResults.Select(r => r.Reconstruction.Blocks.Aggregate("", (current, block) => current + block.Text)).ToArray();
-		ConcurrentBag<(DocumentResult metrics, DataExtractionResponse data)> dataExtractionResponses = [];
+	    var descriptiveResults = await JsonSerializer.DeserializeAsync<List<DocumentResult>>(files["descriptiveResults"].OpenReadStream());
+
+	    // string doi = doiPrefix + "/" + doiSuffix;
+	    //
+	    // HttpResponseMessage sciteResponseMessage = await httpClient.GetAsync($"https://api.scite.ai/papers/{doi}");
+	    //
+	    // if (!sciteResponseMessage.IsSuccessStatusCode)
+	    // {
+	    // 	ProblemDetails problemDetails = new()
+	    // 	{
+	    // 		Status = (int)sciteResponseMessage.StatusCode,
+	    // 		Title = "Citation retrieval failed",
+	    // 		Detail = sciteResponseMessage.ReasonPhrase,
+	    // 	};
+	    //
+	    // 	return Results.Problem(problemDetails);
+	    // }
+	    //
+	    // SciteResponse sciteResponse = await sciteResponseMessage.Content.ReadFromJsonAsync<SciteResponse>() ?? throw new Exception();
+	    //
+	    // CitationDataResponse citationDataResponse = new()
+	    // {
+	    // 	Abstract = sciteResponse.Abstract,
+	    // 	Doi = sciteResponse.Doi,
+	    // 	Issue = sciteResponse.Issue,
+	    // 	Journal = sciteResponse.Journal,
+	    // 	Pages = sciteResponse.Page,
+	    // 	Publisher = sciteResponse.Publisher,
+	    // 	Title = sciteResponse.Title,
+	    // 	Type = sciteResponse.Type,
+	    // 	Volume = sciteResponse.Volume,
+	    // 	Year = sciteResponse.Year,
+	    // 	Authors = sciteResponse.Authors.Select(a => $"{a.Family}, {a.Given}").ToArray()
+	    // };
+	    // string content;
+	    //
+	    // using (StreamReader reader = new(request.Body, Encoding.UTF8))
+	    // {  
+	    // 	content = await reader.ReadToEndAsync();
+	    // }
+	    // string[] contents = descriptiveResults.Select(r => r.Reconstruction.Blocks.Aggregate("", (current, block) => current + block.Text)).ToArray();
+	    ConcurrentBag<(DocumentResult metrics, DataExtractionResponse data)> dataExtractionResponses = [];
 		ResponsesClient responsesClient = new(configuration["OpenAIApiKey"]);
 
 		using (CancellationTokenSource cancellationTokenSource = new())
@@ -76,7 +79,11 @@ public static class ArticleEndpoints
 			{
 				await Task.WhenAll(descriptiveResults.Select(async Task (result) =>
 				{
-					CitationDataResponse? citationDataResponse = null;
+					string content = result.Reconstruction.Blocks.Aggregate("", (current, block) => current + block.Text);
+					AnalysisEngine analysisEngine = new(files[result.File.Name], responsesClient);
+					await analysisEngine.Initialize(cancellationToken);
+					
+					CitationDataResponse? citationDataResponse;
 					
 					if (string.IsNullOrEmpty(result.Doi.Note))
 					{
@@ -111,10 +118,11 @@ public static class ArticleEndpoints
 							Authors = sciteResponse.Authors.Select(a => $"{a.Family}, {a.Given}").ToArray()
 						};
 					}
-				
-					string content = result.Reconstruction.Blocks.Aggregate("", (current, block) => current + block.Text);
-				
-					AnalysisEngine analysisEngine = new(content, responsesClient);
+					else
+					{
+						citationDataResponse = await analysisEngine.ExtractCitationDataAsync(cancellationToken);
+					}
+					
 					AnalyzedArticle analyzedArticle = await analysisEngine.AnalyzeArticleAsync(cancellationToken);
 
 					DataExtractionResponse dataExtractionResponse = new()
@@ -144,17 +152,17 @@ public static class ArticleEndpoints
 				RigorLevel = dataExtractionResponse.data.OverallRigor,
 				CompositeScore = dataExtractionResponse.data.CompositeScore,
 				Keywords = ["TODO: add keywords"],
-				Title = "test",
-				Authors = ["test"],
-				Publisher = "test",
-				Summary = "test",
-				SourceType = "test",
-				Volume = "test",
-				Issue = "test",
-				Doi = "test",
-				Journal = "test",
-				Pages = "test",
-				Year = 1234,
+				Title = dataExtractionResponse.data.CitationDataResponse.Title,
+				Authors = dataExtractionResponse.data.CitationDataResponse.Authors,
+				Publisher = dataExtractionResponse.data.CitationDataResponse.Publisher,
+				Summary = dataExtractionResponse.data.CitationDataResponse.Abstract,
+				SourceType = dataExtractionResponse.data.CitationDataResponse.Type,
+				Volume = dataExtractionResponse.data.CitationDataResponse.Volume,
+				Issue = dataExtractionResponse.data.CitationDataResponse.Issue,
+				Doi = dataExtractionResponse.data.CitationDataResponse.Doi,
+				Journal = dataExtractionResponse.data.CitationDataResponse.Journal,
+				Pages = dataExtractionResponse.data.CitationDataResponse.Pages,
+				Year = dataExtractionResponse.data.CitationDataResponse.Year,
 				URL = "test"
 			};
 
@@ -242,9 +250,13 @@ public static class ArticleEndpoints
 			dbContext.MetaSkillScores.Add(metaSkillScores);
 			
 			// dbContext.DocumentMetrics.()
+
+			DocumentMetrics? oldDocumentMetrics = await dbContext.DocumentMetrics.AsNoTracking().SingleOrDefaultAsync(m =>
+				m.File == dataExtractionResponse.metrics.File.Name && m.EngineVersion == dataExtractionResponse.metrics.EngineVersion);
 			
 			DocumentMetrics documentMetrics = new()
 			{
+				Id = oldDocumentMetrics?.Id ?? 0,
 				Article = article,
 				File = dataExtractionResponse.metrics.File.Name,
 				Status = dataExtractionResponse.metrics.Status,
@@ -284,8 +296,8 @@ public static class ArticleEndpoints
 				ReadingTimeMinutes = dataExtractionResponse.metrics.Measures.Readability.Value.Value?.ReadingTimeMinutes,
 				Flags = dataExtractionResponse.metrics.Flags
 			};
-
-			dbContext.DocumentMetrics.Add(documentMetrics);
+			
+			dbContext.DocumentMetrics.Update(documentMetrics);
 			
 			dbContext.Articles.Add(article);
 		}

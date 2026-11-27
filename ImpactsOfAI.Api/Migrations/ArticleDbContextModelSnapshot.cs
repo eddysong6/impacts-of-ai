@@ -44,7 +44,6 @@ namespace ImpactsOfAI.Api.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("Journal")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.PrimitiveCollection<string[]>("Keywords")
@@ -55,22 +54,18 @@ namespace ImpactsOfAI.Api.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("Publisher")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<int>("RigorLevel")
                         .HasColumnType("integer");
 
                     b.Property<string>("SourceType")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Summary")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Title")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("URL")

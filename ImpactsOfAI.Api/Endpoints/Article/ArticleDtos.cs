@@ -44,17 +44,38 @@ public record SciteResponse
 
 public record CitationDataResponse
 {
-	public string Title { get; set; }
+	public string? Title { get; set; }
 	public int? Year { get; set; }
-	public string Publisher { get; set; }
-	public string Abstract { get; set; }
-	public string Type { get; set; }
+	public string? Publisher { get; set; }
+	public string? Abstract { get; set; }
+	public string? Type { get; set; }
 	public string? Volume { get; set; }
 	public string? Issue { get; set; }
-	public string Doi { get; set; }
-	public string Journal { get; set; }
+	public string? Doi { get; set; }
+	public string? Journal { get; set; }
 	public string? Pages { get; set; }
 	public string[] Authors { get; set; }
+}
+
+public record CitationDataExtractionResponse
+{
+	public string? Title { get; set; }
+	public int? Year { get; set; }
+	public string? Publisher { get; set; }
+	public string? Abstract { get; set; }
+	public string? SourceType { get; set; }
+	public string? Volume { get; set; }
+	public string? Issue { get; set; }
+	public string? Doi { get; set; }
+	public string? Journal { get; set; }
+	public PagesResponse? Pages { get; set; }
+	public string[] Authors { get; set; }
+
+	public record PagesResponse
+	{
+		public int Min { get; set; }
+		public int Max { get; set; }
+	}
 }
 
 public record DataExtractionResponse

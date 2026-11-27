@@ -2,6 +2,12 @@
 
 public static class AnalysisEngineConstants
 {
+	public const string CitationDataExtractionPrompt =
+		"""
+		You are extracting citation data from a research source.
+		If you are unsure about whether or not to include a certain item, do NOT include it.
+		""";
+	
 	public const string FindingsExtractionPrompt =
 		"""
 		You are extracting discrete arguments and findings from a research source for a structured analysis pipeline.
@@ -132,6 +138,40 @@ public static class AnalysisEngineConstants
 		Score of 2 (low): Structure is confusing, jargon unexplained, hard to follow independent of formatting noise
 		Score of 5 (mid): Generally followable but uneven — some sections clear, others dense or disorganized
 		Score of 8 (high): Clear structure, accessible language for the audience, ideas flow logically
+		""";
+
+	public const string CitationDataJsonSchema =
+		"""
+		{
+		  "type": "object",
+		  "properties": {
+		    "title": { "type": ["string", "null"] },
+		    "year": { "type": ["integer", "null"], "description": "The year the article was published in." },
+		    "publisher": { "type": ["string", "null"], "description": "The publisher that published the article." },
+		    "abstract": { "type": ["string", "null"] },
+		    "source_type": { "type": ["string", "null"], "description": "The type of article it is." },
+		    "volume": { "type": ["string", "null"], "description": "The volume the article is a part of." },
+			"issue": { "type": ["string", "null"], "description": "The issue the article is a part of." },
+			"doi": { "type": ["string", "null"] },
+			"journal": { "type": ["string", "null"], "description": "The journal the article is a part of." },
+			"pages": { 
+			  "type": ["object", "null"],
+			  "description": "The pages the article is found in.",
+			  "properties": {
+			    "min": { "type": "integer", "description": "The first page the article is found in." },
+				"max": { "type": "integer", "description": "The last page the article is found in." }
+			  },
+			  "required": ["min", "max"],
+			  "additionalProperties": false
+			},
+			"authors": { 
+			  "type": "array",
+			  "items": { "type": "string" } 
+			}
+		  },
+		  "required": ["title", "year", "publisher", "abstract", "source_type", "volume", "issue", "doi", "journal", "pages", "authors"],
+		  "additionalProperties": false
+		}
 		""";
 
 	public const string FindingsJsonSchema =
